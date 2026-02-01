@@ -1,3 +1,4 @@
+import os
 import random
 import re
 from fastapi import FastAPI, Header, HTTPException
@@ -6,7 +7,7 @@ from typing import Optional
 
 app = FastAPI()
 
-API_KEY = "shakti123"
+API_KEY = os.getenv("API_KEY")
 
 SCAM_KEYWORDS = [
     "lottery", "won", "urgent", "upi", "bank",
@@ -93,3 +94,4 @@ def honeypot(
         "agent_reply": agent_reply,
         "extracted_intelligence": conversation_memory[convo_id]["extracted"]
     }
+
