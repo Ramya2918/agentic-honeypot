@@ -5,9 +5,11 @@ from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 
+
 app = FastAPI()
 
 API_KEY = os.getenv("API_KEY")
+
 
 SCAM_KEYWORDS = [
     "lottery", "won", "urgent", "upi", "bank",
