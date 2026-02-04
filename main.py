@@ -45,6 +45,19 @@ async def honeypot(
             "reply": "Why is my account being suspended?"
         }
 
+    @app.get("/honeypot")
+    def honeypot_get(
+    x_api_key: Optional[str] = Header(None, alias="x-api-key")
+    ):
+    if x_api_key != API_KEY:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    return {
+        "status": "success",
+        "reply": "Why is my account being suspended?"
+    }
+
+
     # 🧪 CASE 2: Full evaluation request
     session_id = payload.get("sessionId", "unknown-session")
     message_text = payload.get("message", {}).get("text", "").lower()
@@ -102,3 +115,4 @@ async def honeypot(
 @app.get("/")
 def health():
     return {"status": "running"}
+
