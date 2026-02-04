@@ -1,5 +1,5 @@
-from fastapi import FastAPI, Header, HTTPException, Body
-from typing import Optional, Dict, Any, List
+from fastapi import FastAPI, Header, HTTPException, Request
+from typing import Optional, Dict, Any
 import os
 import random
 import re
@@ -7,15 +7,9 @@ import requests
 
 app = FastAPI()
 
-# --------------------
-# Config
-# --------------------
 API_KEY = os.getenv("API_KEY", "shakti123")
 GUVI_CALLBACK_URL = "https://hackathon.guvi.in/api/updateHoneyPotFinalResult"
 
-# --------------------
-# Agent replies
-# --------------------
 AGENT_REPLIES = [
     "Why is my account being suspended?",
     "Which bank is this regarding?",
@@ -23,42 +17,38 @@ AGENT_REPLIES = [
     "I need more details to understand this."
 ]
 
-# --------------------
-# Regex patterns
-# --------------------
 UPI_REGEX = r"\b[\w.\-]+@[\w]+\b"
 URL_REGEX = r"https?://[^\s]+"
 BANK_REGEX = r"\b\d{9,18}\b"
 
-# --------------------
-# Memory (simple in-memory store)
-# --------------------
 session_store: Dict[str, Dict[str, Any]] = {}
 
-# --------------------
-# Honeypot Endpoint
-# --------------------
 @app.post("/honeypot")
-def honeypot(
-    payload: Optional[Dict[str, Any]] = Body(default=None),
+async def honeypot(
+    request: Request,
     x_api_key: Optional[str] = Header(None, alias="x-api-key")
 ):
     # 🔐 Auth
     if x_api_key != API_KEY:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
-    # 🧪 Tester sends empty body
+    # 🧪 Try to read JSON body (may not exist)
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = None
+
+    # 🧪 CASE 1: GUVI tester (EMPTY BODY)
     if not payload:
         return {
             "status": "success",
             "reply": "Why is my account being suspended?"
         }
 
+    # 🧪 CASE 2: Full evaluation request
     session_id = payload.get("sessionId", "unknown-session")
     message_text = payload.get("message", {}).get("text", "").lower()
-    history = payload.get("conversationHistory", [])
 
-    # Init session
     if session_id not in session_store:
         session_store[session_id] = {
             "messages": [],
@@ -70,11 +60,9 @@ def honeypot(
 
     session_store[session_id]["messages"].append(message_text)
 
-    # Scam detection
     scam_keywords = ["bank", "blocked", "verify", "urgent", "account", "upi", "link"]
     scam_detected = any(word in message_text for word in scam_keywords)
 
-    # Intelligence extraction
     session_store[session_id]["upiIds"].extend(re.findall(UPI_REGEX, message_text))
     session_store[session_id]["phishingLinks"].extend(re.findall(URL_REGEX, message_text))
     session_store[session_id]["bankAccounts"].extend(re.findall(BANK_REGEX, message_text))
@@ -83,14 +71,11 @@ def honeypot(
         if word in message_text:
             session_store[session_id]["suspiciousKeywords"].append(word)
 
-    # Agent reply
     reply = random.choice(AGENT_REPLIES) if scam_detected else "Thank you for the information."
 
-    # --------------------
-    # FINAL CALLBACK (MANDATORY)
-    # --------------------
+    # 🔔 Mandatory GUVI callback
     if scam_detected:
-        payload = {
+        callback_payload = {
             "sessionId": session_id,
             "scamDetected": True,
             "totalMessagesExchanged": len(session_store[session_id]["messages"]),
@@ -105,13 +90,10 @@ def honeypot(
         }
 
         try:
-            requests.post(GUVI_CALLBACK_URL, json=payload, timeout=5)
+            requests.post(GUVI_CALLBACK_URL, json=callback_payload, timeout=5)
         except Exception:
-            pass  # Do not fail API if callback fails
+            pass
 
-    # --------------------
-    # RESPONSE (EXACT FORMAT)
-    # --------------------
     return {
         "status": "success",
         "reply": reply
