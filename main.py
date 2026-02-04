@@ -45,8 +45,8 @@ async def honeypot(
             "reply": "Why is my account being suspended?"
         }
 
-    @app.get("/honeypot")
-    def honeypot_get(
+@app.get("/honeypot")
+def honeypot_get(
     x_api_key: Optional[str] = Header(None, alias="x-api-key")
     ):
     if x_api_key != API_KEY:
